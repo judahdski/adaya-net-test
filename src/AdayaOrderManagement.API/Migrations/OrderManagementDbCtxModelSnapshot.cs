@@ -36,9 +36,14 @@ namespace AdayaOrderManagement.API.Migrations
 
                     b.Property<string>("PayloadHash")
                         .IsRequired()
-                        .HasColumnType("nvarchar(1)");
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.HasKey("Key");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasFilter("[OrderId] IS NOT NULL");
 
                     b.ToTable("IdempotencyRequests");
                 });
@@ -146,6 +151,16 @@ namespace AdayaOrderManagement.API.Migrations
                         {
                             t.HasCheckConstraint("CK_Products_Stock", "[StockQuantity] >= 0");
                         });
+                });
+
+            modelBuilder.Entity("AdayaOrderManagement.API.Models.IdempotencyRequest", b =>
+                {
+                    b.HasOne("AdayaOrderManagement.API.Models.Order", "Order")
+                        .WithOne()
+                        .HasForeignKey("AdayaOrderManagement.API.Models.IdempotencyRequest", "OrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Order");
                 });
 
             modelBuilder.Entity("AdayaOrderManagement.API.Models.OrderItem", b =>

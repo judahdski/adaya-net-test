@@ -1,6 +1,5 @@
 using AdayaOrderManagement.API.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace AdayaOrderManagement.API.Infrastructure;
 
@@ -26,7 +25,7 @@ public sealed class OrderManagementDbCtx(DbContextOptions<OrderManagementDbCtx> 
     // model : OrderItem
     modelBuilder.Entity<OrderItem>(entity =>
     {
-      // by concept, sama kek 'CheckConstraint' si stock di table product
+      // konsepnya sama kayak check constraint stok di tabel produk
       entity.ToTable(table => table.HasCheckConstraint("CK_Order_Quantity", "[OrderQuantity] > 0"));
 
       entity.HasIndex(x => new { x.OrderId, x.ProductId }).IsUnique();
@@ -37,7 +36,7 @@ public sealed class OrderManagementDbCtx(DbContextOptions<OrderManagementDbCtx> 
 
       entity.Property(x => x.UnitPrice).HasPrecision(18, 2);
 
-      // delete rules:
+      // aturan penghapusan:
       // kalo product udah ada di table 'OrderItem', product itu 'gaboleh' dihapus karena di-restrict
       entity.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
       // kalo order (parent) diapus, itemsnya (child) ngikut kehapus (cascading)
@@ -64,6 +63,9 @@ public sealed class OrderManagementDbCtx(DbContextOptions<OrderManagementDbCtx> 
       entity.HasKey(x => x.Key); //ngebuat jadi PK
 
       entity.Property(x => x.Key).HasMaxLength(200).IsRequired();
+      entity.Property(x => x.PayloadHash).HasMaxLength(64).IsRequired();
+      entity.HasOne(x => x.Order).WithOne().HasForeignKey<IdempotencyRequest>(x => x.OrderId)
+        .OnDelete(DeleteBehavior.Restrict);
     });
   }
 }

@@ -1,5 +1,3 @@
-using System.Data;
-
 namespace AdayaOrderManagement.API.Models;
 
 public sealed class Order
@@ -10,9 +8,9 @@ public sealed class Order
   public OrderStatus Status { get; set; }
   public DateTime CreatedAtUtc { get; set; }
   public DateTime UpdatedAtUtc { get; set; }
-  public byte[] RowVersion { get; set; }
+  public byte[] RowVersion { get; set; } = [];
 
-  public ICollection<OrderItem> Items { get; set; }
+  public ICollection<OrderItem> Items { get; set; } = [];
 }
 
 public enum OrderStatus
