@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AdayaOrderManagement.API/AdayaOrderManagement.API.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AdayaOrderManagement.Tests/AdayaOrderManagement.Tests.csproj" />
+  </Folder>
+</Solution>
