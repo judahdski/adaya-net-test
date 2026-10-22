@@ -35,6 +35,8 @@ public sealed class OrderManagementDbCtx(DbContextOptions<OrderManagementDbCtx> 
 
       entity.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId);
 
+      entity.Property(x => x.UnitPrice).HasPrecision(18, 2);
+
       // delete rules:
       // kalo product udah ada di table 'OrderItem', product itu 'gaboleh' dihapus karena di-restrict
       entity.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
@@ -45,6 +47,10 @@ public sealed class OrderManagementDbCtx(DbContextOptions<OrderManagementDbCtx> 
     // model : Order
     modelBuilder.Entity<Order>(entity =>
     {
+      entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+
+      entity.ToTable(x => x.HasCheckConstraint("CK_Status_Order", "[Status] IN ('PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED')"));
+
       entity.HasIndex(x => new { x.CustomerId, x.CreatedAtUtc });
 
       entity.HasIndex(x => new { x.Status, x.CreatedAtUtc });
