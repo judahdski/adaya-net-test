@@ -1,5 +1,6 @@
 {
     "customerId": "C001",
     "shippingAddress": "Jl. Melati 10",
-    "items": [{ "productId": 1, "quantity": 2 }]
+    "items": [{ "productId": 1, "quantity": 14 }]
 }
+
