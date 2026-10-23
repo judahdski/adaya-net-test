@@ -481,6 +481,6 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-README.md
-docs/
+!docs/get-order-api-contract.md
+!docs/list-orders-api-contract.md
 test-insert/

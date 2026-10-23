@@ -14,6 +14,7 @@ builder.Services.AddDbContext<OrderManagementDbCtx>(
 );
 builder.Services.AddScoped<CreateOrderService>();
 builder.Services.AddScoped<OrderStatusService>();
+builder.Services.AddScoped<OrderQueryService>();
 
 builder.Services.AddControllers();
 builder.Services.Configure<ApiBehaviorOptions>(options =>

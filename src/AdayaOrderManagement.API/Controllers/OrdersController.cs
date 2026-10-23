@@ -1,14 +1,12 @@
 using AdayaOrderManagement.API.Application.Orders;
-using AdayaOrderManagement.API.Infrastructure;
 using AdayaOrderManagement.API.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AdayaOrderManagement.API.Controllers;
 
 [ApiController]
 [Route("orders")]
-public sealed class OrdersController(CreateOrderService service, OrderStatusService statusService, OrderManagementDbCtx db) : ControllerBase
+public sealed class OrdersController(CreateOrderService service, OrderStatusService statusService, OrderQueryService queryService) : ControllerBase
 {
   [HttpPost]
   public async Task<IActionResult> Create(
@@ -47,11 +45,16 @@ public sealed class OrdersController(CreateOrderService service, OrderStatusServ
     };
   }
 
-  [HttpGet("{id:guid}")]
-  public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
+  [HttpGet("{id}")]
+  public async Task<IActionResult> Get(string id, CancellationToken cancellationToken)
   {
-    var order = await db.Orders.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
-    return order is null ? NotFound() : Ok(CreateOrderResponse.FromOrder(order));
+    if (!Guid.TryParse(id, out var orderId))
+      return Error(400, "Invalid request", "A valid order ID is required.", "INVALID_REQUEST");
+
+    var order = await queryService.GetOrderByIdAsync(orderId, cancellationToken);
+    return order is null
+      ? Error(404, "Order not found", $"Order {orderId} was not found.", "ORDER_NOT_FOUND")
+      : Ok(order);
   }
 
   [HttpPatch("{id:guid}/status")]

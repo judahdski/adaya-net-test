@@ -111,8 +111,9 @@ public sealed class OrderStatusTests
       var cancelled = await cancelResponse.Content.ReadFromJsonAsync<CreateOrderResponse>();
       Assert.Equal("CANCELLED", cancelled?.Status);
 
-      var fetched = await client.GetFromJsonAsync<CreateOrderResponse>($"/orders/{created.OrderId}");
-      Assert.Equal("CANCELLED", fetched?.Status);
+      var fetched = await client.GetFromJsonAsync<OrderDetailResponse>($"/orders/{created.OrderId}");
+      Assert.Equal(created.OrderId, fetched?.Id);
+      Assert.Equal("Cancelled", fetched?.Status);
 
       using var retryRequest = new HttpRequestMessage(HttpMethod.Post, "/orders")
       {
