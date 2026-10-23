@@ -87,7 +87,7 @@ namespace AdayaOrderManagement.API.Migrations
 
                     b.ToTable("Orders", t =>
                         {
-                            t.HasCheckConstraint("CK_Status_Order", "[Status] IN ('PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED')");
+                            t.HasCheckConstraint("CK_Status_Order", "[Status] COLLATE Latin1_General_100_BIN2 IN ('PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED')");
                         });
                 });
 

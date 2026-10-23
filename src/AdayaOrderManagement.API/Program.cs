@@ -13,6 +13,7 @@ builder.Services.AddDbContext<OrderManagementDbCtx>(
     options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 builder.Services.AddScoped<CreateOrderService>();
+builder.Services.AddScoped<OrderStatusService>();
 
 builder.Services.AddControllers();
 builder.Services.Configure<ApiBehaviorOptions>(options =>

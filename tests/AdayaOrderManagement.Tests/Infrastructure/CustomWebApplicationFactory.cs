@@ -15,7 +15,7 @@ public sealed class CustomWebApplicationFactory(string connectionString) : WebAp
     builder.UseEnvironment("Development");
     builder.ConfigureTestServices(services =>
     {
-      // arahkan db context ke database sementara yang dibikin khusus buat test ini
+      // arahin db context ke database sementara yang dibikin khusus buat test ini
       services.RemoveAll<DbContextOptions<OrderManagementDbCtx>>();
       services.AddDbContext<OrderManagementDbCtx>(options => options.UseSqlServer(connectionString));
     });

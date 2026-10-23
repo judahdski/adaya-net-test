@@ -48,7 +48,7 @@ public sealed class OrderManagementDbCtx(DbContextOptions<OrderManagementDbCtx> 
     {
       entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
 
-      entity.ToTable(x => x.HasCheckConstraint("CK_Status_Order", "[Status] IN ('PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED')"));
+      entity.ToTable(x => x.HasCheckConstraint("CK_Status_Order", "[Status] COLLATE Latin1_General_100_BIN2 IN ('PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED')"));
 
       entity.HasIndex(x => new { x.CustomerId, x.CreatedAtUtc });
 

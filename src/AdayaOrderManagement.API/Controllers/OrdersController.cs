@@ -1,5 +1,6 @@
 using AdayaOrderManagement.API.Application.Orders;
 using AdayaOrderManagement.API.Infrastructure;
+using AdayaOrderManagement.API.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +8,7 @@ namespace AdayaOrderManagement.API.Controllers;
 
 [ApiController]
 [Route("orders")]
-public sealed class OrdersController(CreateOrderService service, OrderManagementDbCtx db) : ControllerBase
+public sealed class OrdersController(CreateOrderService service, OrderStatusService statusService, OrderManagementDbCtx db) : ControllerBase
 {
   [HttpPost]
   public async Task<IActionResult> Create(
@@ -51,6 +52,29 @@ public sealed class OrdersController(CreateOrderService service, OrderManagement
   {
     var order = await db.Orders.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
     return order is null ? NotFound() : Ok(CreateOrderResponse.FromOrder(order));
+  }
+
+  [HttpPatch("{id:guid}/status")]
+  public async Task<IActionResult> UpdateStatus(
+    Guid id, [FromBody] UpdateOrderStatusRequest? request, CancellationToken cancellationToken)
+  {
+    // cuma nama status uppercase yang dikenal yang boleh masuk ke alur perubahan order
+    var statusName = Enum.GetNames<OrderStatus>()
+      .FirstOrDefault(x => string.Equals(x, request?.Status, StringComparison.Ordinal));
+    if (statusName is null)
+      return Error(400, "Invalid request", "A valid status is required.", "INVALID_REQUEST");
+
+    var targetStatus = Enum.Parse<OrderStatus>(statusName);
+    var result = await statusService.UpdateAsync(id, targetStatus, cancellationToken);
+    return result.Outcome switch
+    {
+      UpdateOrderStatusOutcome.Updated => Ok(result.Order),
+      UpdateOrderStatusOutcome.NotFound => Error(404, "Order not found", $"Order {id} was not found.", "ORDER_NOT_FOUND"),
+      UpdateOrderStatusOutcome.InvalidTransition => Error(409, "Invalid status transition", "The requested status cannot follow the current status.", "INVALID_STATUS_TRANSITION"),
+      UpdateOrderStatusOutcome.ConcurrencyConflict => Error(409, "Order changed", "The order was changed by another request. Try again.", "ORDER_CONCURRENCY_CONFLICT"),
+      UpdateOrderStatusOutcome.StockRestoreFailed => Error(409, "Stock restore failed", "The order was not cancelled because stock could not be restored.", "STOCK_RESTORE_FAILED"),
+      _ => throw new InvalidOperationException("Unexpected status update result.")
+    };
   }
 
   private IActionResult Error(int status, string title, string detail, string code)

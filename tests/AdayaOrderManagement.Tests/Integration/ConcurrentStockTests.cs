@@ -91,7 +91,7 @@ public sealed class ConcurrentStockTests
       var conflict = responses.Single(response => response.StatusCode == HttpStatusCode.Conflict);
       var createdOrder = await created.Content.ReadFromJsonAsync<CreateOrderResponse>();
       Assert.NotNull(createdOrder);
-      Assert.Equal("Pending", createdOrder.Status);
+      Assert.Equal("PENDING", createdOrder.Status);
       Assert.Equal($"/orders/{createdOrder.OrderId}", created.Headers.Location?.ToString());
 
       using (var problem = await System.Text.Json.JsonDocument.ParseAsync(await conflict.Content.ReadAsStreamAsync()))
