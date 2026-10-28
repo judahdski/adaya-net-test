@@ -78,11 +78,48 @@ Respons create dan update status cuma berisi `orderId` dan `status`. Respons `GE
 - **Harga produk berubah saat order dibuat:** service membaca produk tanpa tracking sebelum update stok bersyarat. Kalau harga diubah setelah pembacaan itu, order bisa menyimpan harga sebelumnya. Tidak ada pemeriksaan versi harga atau kebijakan snapshot harga untuk seluruh transaksi. Setelah disimpan, harga item itulah yang dipakai untuk menghitung total di endpoint detail.
 - **Produk dihapus saat order dibuat:** produk bisa dihapus setelah lookup awal tetapi sebelum update stok bersyarat. Update tersebut akan mengubah nol baris, sehingga service melakukan rollback dan mengembalikan `409 INSUFFICIENT_STOCK` meskipun penyebabnya produk sudah hilang. Foreign key juga mencegah item tanpa produk, sementara produk yang sudah dipakai item order tidak bisa dihapus. Skenario timing ini belum punya tes.
 
-## Error handling dan logging
+## Penanganan error, logging, dan observabilitas
+
+### Penanganan error
 
 Controller memakai `CreateOrderValidator` untuk request pembuatan order serta model binding ASP.NET Core dan `[ApiController]` untuk input yang tidak bisa dibaca. Model state yang tidak valid dikirim sebagai `ValidationProblemDetails` dengan `400 INVALID_REQUEST`. Kegagalan service yang sudah dipetakan memakai `ProblemDetails` bertipe `application/problem+json`, lengkap dengan status HTTP, `code`, dan `correlationId`. Exception tak terduga dicatat oleh handler global dan dibalas dengan `500 INTERNAL_ERROR` tanpa detail internal database. Tidak semua error SQL terkait concurrency atau constraint diubah menjadi `409` khusus.
 
-Middleware mengirim `HttpContext.TraceIdentifier` lewat header `X-Correlation-ID` di setiap respons; body error memakai ID yang sama. Aplikasi mengaktifkan logging ke console dan debug, dan handler mencatat error tak terduga beserta ID itu. API tidak menerima correlation ID dari client dan tidak menambahkannya ke body respons sukses.
+### Strategi logging
+
+Aplikasi memakai abstraksi bawaan ASP.NET Core `ILogger<T>` untuk mencatat log terstruktur melalui templat pesan dan properti bernama. Provider console dikonfigurasi untuk menghasilkan JSON, sementara provider debug juga diaktifkan.
+
+- **Konfigurasi per lingkungan:** tingkat log diatur melalui `appsettings.json` dan `appsettings.Development.json`. Konfigurasi utama memakai tingkat `Information` untuk aplikasi, sedangkan Development mengubah kategori `AdayaOrderManagement` menjadi `Debug`.
+- **Format keluaran:** log console berupa JSON tanpa indentasi, menyertakan scope, dan memakai waktu UTC dengan format `yyyy-MM-ddTHH:mm:ss.fffZ`.
+- **Scope per request:** middleware memakai `ILogger.BeginScope()` untuk menyertakan properti `CorrelationId` selama request diproses.
+- **Pencatatan penyelesaian request:** middleware mencatat metode HTTP, path request, kode status respons, dan durasi pemrosesan dalam milidetik. Respons dengan status di bawah `400` dicatat pada tingkat `Information`, `400`–`499` pada `Warning`, dan `500` ke atas pada `Error`.
+- **Pencatatan exception terpusat:** handler global mencatat exception yang tidak tertangani, sementara klien menerima respons standar `500 INTERNAL_ERROR` tanpa detail exception internal.
+
+### Pencatatan kejadian bisnis
+
+| Tingkat log | Kejadian |
+| --- | --- |
+| `Information` | Pembuatan order, perubahan status, pembatalan, dan pengembalian hasil request idempoten yang diulang |
+| `Warning` | Stok tidak cukup, konflik idempotency key, transisi status tidak sah, dan konflik perubahan data yang terdeteksi |
+| `Error` | Exception tak terduga dan kegagalan request yang tidak tertangani |
+| `Debug` | Diagnostik tambahan jika tersedia; tingkat ini diaktifkan untuk kategori aplikasi di Development |
+
+Log keberhasilan pembuatan order dan perubahan status ditempatkan setelah transaksi database berhasil di-commit. Request idempoten yang diulang membaca order yang sudah tersimpan tanpa membuat order baru.
+
+### ID korelasi
+
+Middleware memakai `HttpContext.TraceIdentifier` sebagai ID korelasi dan mengirimkannya melalui header `X-Correlation-ID` di setiap respons. Body error memakai ID yang sama. API tidak menerima ID korelasi dari klien dan tidak menambahkannya ke body respons sukses.
+
+ID tersebut juga disertakan dalam scope log terstruktur agar log penyelesaian request, kejadian bisnis, dan exception dari request yang sama bisa dicocokkan. Misalnya, ID dari respons yang gagal dapat dipakai untuk mencari log request dan alasan penolakan bisnis yang terkait.
+
+### Keamanan data dalam log
+
+Pencatatan aplikasi menghindari penyimpanan payload request yang sensitif, kredensial, connection string, dan alamat pengiriman. Log pembuatan order menyertakan `CustomerId` dan `OrderId`. Detail exception dicatat di sisi server, bukan dikembalikan dalam respons error API.
+
+### Cakupan dan batasan observabilitas
+
+Implementasi saat ini memakai log console terstruktur untuk menelusuri request dalam satu layanan API. Penyimpanan log terpusat, penelusuran lintas layanan (*distributed tracing*), pengumpulan metrik, dan dasbor pemantauan belum termasuk dalam cakupan prototipe.
+
+Pencatatan perubahan status masih perlu dirapikan: beberapa templat pesan di `OrderStatusService` memiliki jumlah argumen yang tidak sesuai, dan pesan untuk pembatalan serta perubahan status lainnya tertukar. Karena itu, rincian log perubahan status belum bisa sepenuhnya diandalkan untuk pemantauan.
 
 ## Tes
 

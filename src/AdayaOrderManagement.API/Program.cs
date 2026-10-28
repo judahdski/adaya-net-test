@@ -2,8 +2,11 @@ using AdayaOrderManagement.API.Application.Orders;
 using AdayaOrderManagement.API.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
+using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
+
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
@@ -38,19 +41,48 @@ var app = builder.Build();
 
 app.Use(async (context, next) =>
 {
+    var correlationId = context.TraceIdentifier;
+
     // id ini ikut di header supaya respons error gampang dicocokkan dengan log
-    context.Response.Headers["X-Correlation-ID"] = context.TraceIdentifier;
-    await next(context);
+    context.Response.Headers["X-Correlation-ID"] = correlationId;
+
+    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("AdayaOrderManagement.API.Request");
+
+    using (logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            await next(context);
+        }
+        finally
+        {
+            stopwatch.Stop();
+
+            var statusCode = context.Response.StatusCode;
+            var elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
+
+            var logLevel = statusCode >= 500 ? LogLevel.Error : statusCode >= 400 ? LogLevel.Warning : LogLevel.Information;
+
+            logger.Log(logLevel, "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs} ms", context.Request.Method, context.Request.Path.Value, statusCode, elapsedMs);
+        }
+    }
 });
+// TODO: tanya ini tuh structured log? cara running selain dotnet run itu gimana?
 
 app.UseExceptionHandler(handler => handler.Run(async context =>
 {
     // error tak terduga tetap dicatat, tapi detail database tidak dikirim ke klien
     var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("UnhandledException");
+
     var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+
     logger.LogError(exception, "Unhandled request error {CorrelationId}", context.TraceIdentifier);
+
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
     context.Response.ContentType = "application/problem+json";
+
     await context.Response.WriteAsJsonAsync(new
     {
         type = "about:blank",
@@ -65,6 +97,10 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapGet("/test-exception", () =>
+    {
+        throw new InvalidOperationException("Simulated unexpected exception");
+    });
 }
 
 app.UseHttpsRedirection();
@@ -74,5 +110,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-public partial class Program { }

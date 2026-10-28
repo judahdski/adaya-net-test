@@ -6,7 +6,7 @@ namespace AdayaOrderManagement.API.Controllers;
 
 [ApiController]
 [Route("orders")]
-public sealed class OrdersController(CreateOrderService service, OrderStatusService statusService, OrderQueryService queryService) : ControllerBase
+public sealed class OrdersController(CreateOrderService service, OrderStatusService statusService, OrderQueryService queryService, ILogger<OrdersController> logger) : ControllerBase
 {
   [HttpPost]
   public async Task<IActionResult> Create(
@@ -48,6 +48,8 @@ public sealed class OrdersController(CreateOrderService service, OrderStatusServ
   [HttpGet("{id}")]
   public async Task<IActionResult> Get(string id, CancellationToken cancellationToken)
   {
+    logger.LogInformation("Tunggu yaa....");
+
     if (!Guid.TryParse(id, out var orderId))
       return Error(400, "Invalid request", "A valid order ID is required.", "INVALID_REQUEST");
 

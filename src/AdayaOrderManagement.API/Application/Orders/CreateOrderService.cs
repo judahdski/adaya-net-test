@@ -19,7 +19,8 @@ public sealed record CreateOrderResult(
   CreateOrderResponse? Order = null,
   int? ProductId = null);
 
-public sealed class CreateOrderService(OrderManagementDbCtx db)
+public sealed class CreateOrderService(OrderManagementDbCtx db,
+  ILogger<CreateOrderService> logger)
 {
   public async Task<CreateOrderResult> CreateAsync(
     CreateOrderRequest request, string idempotencyKey, CancellationToken cancellationToken)
@@ -56,11 +57,16 @@ public sealed class CreateOrderService(OrderManagementDbCtx db)
 
       // key yang sama cuma boleh dipakai ulang kalau isi request-nya juga sama
       if (existing.PayloadHash != payloadHash)
+      {
+        logger.LogWarning("Idempotency key conflict. IdempotencyKeyHash : {PayloadHash}, OrderId : {OrderId}", payloadHash, existing.OrderId);
         return new(CreateOrderOutcome.KeyReused);
+      }
 
       // key yang sudah tersimpan pasti terhubung ke order karena keduanya ditulis dalam satu transaksi
       var order = await db.Orders.AsNoTracking()
         .SingleAsync(x => x.Id == existing.OrderId, cancellationToken);
+
+      logger.LogInformation("Idempotent request berhasil direplayy. OrderId : {OrderId}, IdempotencyKeyHash : {PayloadHash}", order.Id, payloadHash);
       return new(CreateOrderOutcome.Existing, CreateOrderResponse.FromOrder(order));
     }
 
@@ -83,7 +89,7 @@ public sealed class CreateOrderService(OrderManagementDbCtx db)
 
     foreach (var item in requestedItems)
     {
-      // conditional update bikin pengecekan dan pengurangan stok terjadi sekaligus
+      // conditional update bikin pengecekan dan pengurangan stok terjadi sekalian
       // di sini, salah satu cara ngehandle si race condition
       var updated = await db.Products
         .Where(x => x.Id == item.ProductId && x.StockQuantity >= item.Quantity)
@@ -94,6 +100,9 @@ public sealed class CreateOrderService(OrderManagementDbCtx db)
       if (updated != 1)
       {
         await transaction.RollbackAsync(cancellationToken);
+
+        logger.LogWarning("Order creation rejected due to insufficient stock. ProductId: {ProductId}, RequestedQuantityy:{RequestedQuantity}", item.ProductId, item.Quantity);
+
         return new(CreateOrderOutcome.InsufficientStock, ProductId: item.ProductId);
       }
     }
@@ -121,6 +130,8 @@ public sealed class CreateOrderService(OrderManagementDbCtx db)
     claim.OrderId = orderToSave.Id;
     await db.SaveChangesAsync(cancellationToken);
     await transaction.CommitAsync(cancellationToken);
+
+    logger.LogInformation("Order created successfully. OrderId: {OrderId}, CustomerId: {CustomerId}", orderToSave.Id, orderToSave.CustomerId);
 
     return new(CreateOrderOutcome.Created, CreateOrderResponse.FromOrder(orderToSave));
   }

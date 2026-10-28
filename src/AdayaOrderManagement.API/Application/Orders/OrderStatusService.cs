@@ -17,7 +17,7 @@ public sealed record UpdateOrderStatusResult(
   UpdateOrderStatusOutcome Outcome,
   CreateOrderResponse? Order = null);
 
-public sealed class OrderStatusService(OrderManagementDbCtx db)
+public sealed class OrderStatusService(OrderManagementDbCtx db, ILogger<OrderStatusService> logger)
 {
   public async Task<UpdateOrderStatusResult> UpdateAsync(
     Guid orderId, OrderStatus targetStatus, CancellationToken cancellationToken)
@@ -28,6 +28,8 @@ public sealed class OrderStatusService(OrderManagementDbCtx db)
     var order = await db.Orders.Include(x => x.Items)
       .SingleOrDefaultAsync(x => x.Id == orderId, cancellationToken);
 
+    var prevStatus = order?.Status;
+
     if (order is null)
     {
       await transaction.RollbackAsync(cancellationToken);
@@ -37,6 +39,9 @@ public sealed class OrderStatusService(OrderManagementDbCtx db)
     if (!IsValidTransition(order.Status, targetStatus))
     {
       await transaction.RollbackAsync(cancellationToken);
+
+      logger.LogWarning("Invalid status transition. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}, NewStatus : {NewStatus}", prevStatus, targetStatus);
+
       return new(UpdateOrderStatusOutcome.InvalidTransition);
     }
 
@@ -51,6 +56,9 @@ public sealed class OrderStatusService(OrderManagementDbCtx db)
     catch (DbUpdateConcurrencyException)
     {
       await transaction.RollbackAsync(cancellationToken);
+
+      logger.LogWarning("Order status update rejected due to concurrency conflict. OrderId: {OrderId}", orderId);
+
       return new(UpdateOrderStatusOutcome.ConcurrencyConflict);
     }
 
@@ -75,6 +83,16 @@ public sealed class OrderStatusService(OrderManagementDbCtx db)
     }
 
     await transaction.CommitAsync(cancellationToken);
+
+    if (targetStatus == OrderStatus.CANCELLED)
+    {
+      logger.LogInformation("Status updated successfully. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}, NewStatus : {NewStatus}", prevStatus, targetStatus);
+    }
+    else
+    {
+      logger.LogInformation("Order cancelled. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}", prevStatus);
+    }
+
     return new(UpdateOrderStatusOutcome.Updated, CreateOrderResponse.FromOrder(order));
   }
 
