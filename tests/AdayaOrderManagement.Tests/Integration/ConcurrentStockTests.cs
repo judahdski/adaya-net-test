@@ -16,7 +16,7 @@ public sealed class ConcurrentStockTests
   [Fact]
   public async Task DifferentKeysForSameProduct_OnlyOneOrderDeductsStock()
   {
-    var serverConnectionString = Environment.GetEnvironmentVariable("ADAYA_TEST_SQLSERVER_CONNECTION")
+    var serverConnectionString = Environment.GetEnvironmentVariable("ADAYA_TEST_SQLSERVER_CONECTION")
       ?? "Server=localhost;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True";
     var databaseName = $"AdayaOrderManagement_ConcurrencyTest_{Guid.NewGuid():N}";
     var masterConnection = new SqlConnectionStringBuilder(serverConnectionString) { InitialCatalog = "master" };

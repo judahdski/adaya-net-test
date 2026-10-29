@@ -39,6 +39,8 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// TODO: cari tau ini tuh istilahnya apa? RequestMiddleware? semua request pasti lewat sini? trus 'logger.BeginScope' namanya tuh apa? logging scope?
+
 app.Use(async (context, next) =>
 {
     var correlationId = context.TraceIdentifier;
@@ -69,7 +71,6 @@ app.Use(async (context, next) =>
         }
     }
 });
-// TODO: tanya ini tuh structured log? cara running selain dotnet run itu gimana?
 
 app.UseExceptionHandler(handler => handler.Run(async context =>
 {
@@ -78,7 +79,7 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
 
     var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
 
-    logger.LogError(exception, "Unhandled request error {CorrelationId}", context.TraceIdentifier);
+    logger.LogError(exception, "CustomErrorHandler || Unhandled request error {CorrelationId}", context.TraceIdentifier);
 
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
     context.Response.ContentType = "application/problem+json";

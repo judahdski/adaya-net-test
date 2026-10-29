@@ -27,6 +27,8 @@ public sealed class CreateOrderService(OrderManagementDbCtx db,
   {
     // hash dihitung sebelum transaksi
     // semua perubahan data di bawah ini harus berhasil bareng-bareng
+    // todo: ini tuh ngapain? ngehash payload? biar apa?
+    // todo: idempotencyKey dari mana harusnya? frontend?
     var payloadHash = OrderPayloadHasher.Compute(request);
 
     await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);

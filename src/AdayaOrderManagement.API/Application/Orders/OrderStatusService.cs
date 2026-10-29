@@ -18,7 +18,7 @@ public sealed record UpdateOrderStatusResult(
   CreateOrderResponse? Order = null);
 
 public sealed class OrderStatusService(OrderManagementDbCtx db, ILogger<OrderStatusService> logger)
-{
+{//todo:fungsinya cancellationToken di request itu apa? variable itu punya siapa?
   public async Task<UpdateOrderStatusResult> UpdateAsync(
     Guid orderId, OrderStatus targetStatus, CancellationToken cancellationToken)
   {
@@ -40,7 +40,7 @@ public sealed class OrderStatusService(OrderManagementDbCtx db, ILogger<OrderSta
     {
       await transaction.RollbackAsync(cancellationToken);
 
-      logger.LogWarning("Invalid status transition. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}, NewStatus : {NewStatus}", prevStatus, targetStatus);
+      logger.LogWarning("Invalid status transition. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}, NewStatus : {NewStatus}", orderId, prevStatus, targetStatus);
 
       return new(UpdateOrderStatusOutcome.InvalidTransition);
     }
@@ -86,11 +86,11 @@ public sealed class OrderStatusService(OrderManagementDbCtx db, ILogger<OrderSta
 
     if (targetStatus == OrderStatus.CANCELLED)
     {
-      logger.LogInformation("Status updated successfully. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}, NewStatus : {NewStatus}", prevStatus, targetStatus);
+      logger.LogInformation("Status updated successfully. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}, NewStatus : {NewStatus}", orderId, prevStatus, targetStatus);
     }
     else
     {
-      logger.LogInformation("Order cancelled. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}", prevStatus);
+      logger.LogInformation("Order cancelled. OrderId : {OrderId}, PerviousStatus : {PerviousStatus}", orderId, prevStatus);
     }
 
     return new(UpdateOrderStatusOutcome.Updated, CreateOrderResponse.FromOrder(order));

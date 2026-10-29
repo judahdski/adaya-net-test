@@ -1,0 +1,117 @@
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:ConnectionStrings__DefaultConnection = "Server=localhost;Database=OrderManagementDemo;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True;"
+
+
+Idempotency-Key :
+b73891c6-91ec-4db9-8098-49e5dd9de989
+79cb736e-b63a-4933-b66d-d03560e5512c
+d7202027-af6c-43fa-a21b-db8d7a1d5179
+0b8d0b55-1f3d-4463-897a-2f9ed4b8a82b
+91adbd69-460a-4179-a4fa-feca69695cec
+bf9f0352-bcab-462a-a3d9-8a579bf6d289
+a857374b-265a-4813-b965-fe87099a33b5
+e4e6ff3e-a84b-4cd0-a46f-21b7e9ed8014
+3a918ced-edc7-4e00-8ec9-1c058149e25d
+16eef350-62ad-46f3-8390-648cb79d1818
+f35564d4-c65b-4647-aa41-c5f972d3b5cb
+
+Data order :
+
+  {
+    "customerId": "CUST-DEMO-001",
+    "shippingAddress": "Jl. Melati No. 10, Jakarta",
+    "items": [
+      {
+        "productId": 1,
+        "quantity": 2
+      },
+      {
+        "productId": 5,
+        "quantity": 3
+      },
+      {
+        "productId": 6,
+        "quantity": 2
+      }
+    ]
+  }
+  
+  {
+    "customerId": "CUST-DEMO-002",
+    "shippingAddress": "Jl. Mawar No. 25, Bandung",
+    "items": [
+      {
+        "productId": 2,
+        "quantity": 1
+      },
+      {
+        "productId": 3,
+        "quantity": 2
+      },
+      {
+        "productId": 13,
+        "quantity": 1
+      }
+    ]
+  }
+
+  {
+    "customerId": "CUST-DEMO-003",
+    "shippingAddress": "Jl. Kenanga No. 8, Surabaya",
+    "items": [
+      {
+        "productId": 4,
+        "quantity": 2
+      },
+      {
+        "productId": 7,
+        "quantity": 1
+      },
+      {
+        "productId": 15,
+        "quantity": 2
+      }
+    ]
+  }
+
+  {
+    "customerId": "CUST-DEMO-004",
+    "shippingAddress": "Jl. Anggrek No. 17, Yogyakarta",
+    "items": [
+      {
+        "productId": 8,
+        "quantity": 2
+      },
+      {
+        "productId": 9,
+        "quantity": 1
+      },
+      {
+        "productId": 10,
+        "quantity": 4
+      }
+    ]
+  }
+
+  {
+    "customerId": "CUST-DEMO-005",
+    "shippingAddress": "Jl. Cempaka No. 33, Semarang",
+    "items": [
+      {
+        "productId": 11,
+        "quantity": 5
+      },
+      {
+        "productId": 12,
+        "quantity": 2
+      },
+      {
+        "productId": 16,
+        "quantity": 1
+      },
+      {
+        "productId": 19,
+        "quantity": 3
+      }
+    ]
+  }
