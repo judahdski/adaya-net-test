@@ -15,6 +15,7 @@ public sealed class GetOrderByIdTests
   [Fact]
   public async Task ReturnsOrderDetailsAndCalculatedAmountsOrProblemWhenMissing()
   {
+    // ===== SETUP: bikin database sementara biar data aplikasi ga kesentuh =====
     var serverConnectionString = Environment.GetEnvironmentVariable("ADAYA_TEST_SQLSERVER_CONNECTION")
       ?? "Server=localhost;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True";
     var databaseName = $"AdayaOrderManagement_GetOrderTest_{Guid.NewGuid():N}";
@@ -31,6 +32,7 @@ public sealed class GetOrderByIdTests
 
     try
     {
+      // ===== ARRANGE: jalanin API test dan simpan order dengan nilai yang gampang dicek =====
       using var factory = new CustomWebApplicationFactory(testConnection.ConnectionString);
       using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
       {
@@ -65,6 +67,7 @@ public sealed class GetOrderByIdTests
         await db.SaveChangesAsync();
       }
 
+      // ===== ASSERT SUCCESS: detail, subtotal, dan total harus sesuai data order =====
       using var response = await client.GetAsync($"/orders/{orderId}");
       Assert.Equal(HttpStatusCode.OK, response.StatusCode);
       using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -85,6 +88,7 @@ public sealed class GetOrderByIdTests
       Assert.Equal(3, items[1].GetProperty("quantity").GetInt32());
       Assert.Equal(75000m, items[1].GetProperty("subtotal").GetDecimal());
 
+      // ===== ASSERT ERROR: bedain order ga ketemu dengan format ID yang ga valid =====
       using var missing = await client.GetAsync($"/orders/{Guid.NewGuid()}");
       Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
       Assert.Equal("application/problem+json", missing.Content.Headers.ContentType?.MediaType);
@@ -96,6 +100,7 @@ public sealed class GetOrderByIdTests
     }
     finally
     {
+      // ===== CLEANUP: buang database sementara walaupun test-nya gagal =====
       using (var pooledConnection = new SqlConnection(testConnection.ConnectionString))
         SqlConnection.ClearPool(pooledConnection);
       await using var dropDatabase = master.CreateCommand();

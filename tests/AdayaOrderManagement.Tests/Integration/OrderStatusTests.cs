@@ -16,6 +16,7 @@ public sealed class OrderStatusTests
   [Fact]
   public async Task CancellationRestoresStockOnceAndFailedRestoreRollsBack()
   {
+    // ===== SETUP: bikin database sementara biar data aplikasi ga kesentuh =====
     var serverConnectionString = Environment.GetEnvironmentVariable("ADAYA_TEST_SQLSERVER_CONNECTION")
       ?? "Server=localhost;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True";
     var databaseName = $"AdayaOrderManagement_StatusTest_{Guid.NewGuid():N}";
@@ -32,6 +33,7 @@ public sealed class OrderStatusTests
 
     try
     {
+      // ===== ARRANGE: jalanin API test dan siapin produk dengan stock 10 =====
       using var factory = new CustomWebApplicationFactory(testConnection.ConnectionString);
       using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
       {
@@ -49,6 +51,7 @@ public sealed class OrderStatusTests
         productId = product.Id;
       }
 
+      // ===== VALIDASI API: order ga ada dan format status yang salah harus ditolak =====
       using var missingOrder = await client.PatchAsJsonAsync(
         $"/orders/{Guid.NewGuid()}/status", new { status = "CONFIRMED" });
       Assert.Equal(HttpStatusCode.NotFound, missingOrder.StatusCode);
@@ -61,6 +64,7 @@ public sealed class OrderStatusTests
         $"/orders/{Guid.NewGuid()}/status", new { status = "Confirmed" });
       Assert.Equal(HttpStatusCode.BadRequest, mixedCaseStatus.StatusCode);
 
+      // ===== CREATE ORDER: beli 3 unit, jadi stock harus turun dari 10 ke 7 =====
       using var createRequest = new HttpRequestMessage(HttpMethod.Post, "/orders")
       {
         Content = JsonContent.Create(new
@@ -77,6 +81,7 @@ public sealed class OrderStatusTests
       Assert.NotNull(created);
       Assert.Equal("PENDING", created.Status);
 
+      // ===== DATABASE CONSTRAINT: status lowercase tetep ditolak walau lewat SQL langsung =====
       await using (var statusConnection = new SqlConnection(testConnection.ConnectionString))
       {
         await statusConnection.OpenAsync();
@@ -91,6 +96,7 @@ public sealed class OrderStatusTests
         await Assert.ThrowsAsync<SqlException>(() => lowerCaseStatus.ExecuteNonQueryAsync());
       }
 
+      // ===== CONCURRENCY: writer yang masih pake rowversion lama harus gagal =====
       await using (var firstScope = factory.Services.CreateAsyncScope())
       await using (var staleScope = factory.Services.CreateAsyncScope())
       {
@@ -105,6 +111,7 @@ public sealed class OrderStatusTests
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => staleDb.SaveChangesAsync());
       }
 
+      // ===== CANCEL ORDER: balikin stock sekali, retry ga boleh nambah stock lagi =====
       using var cancelResponse = await client.PatchAsJsonAsync(
         $"/orders/{created.OrderId}/status", new { status = "CANCELLED" });
       Assert.Equal(HttpStatusCode.OK, cancelResponse.StatusCode);
@@ -134,6 +141,7 @@ public sealed class OrderStatusTests
         $"/orders/{created.OrderId}/status", new { status = "CANCELLED" });
       Assert.Equal(HttpStatusCode.Conflict, secondCancel.StatusCode);
 
+      // ===== ASSERT DATABASE: status final Cancelled dan stock balik tepat ke 10 =====
       await using var verifyScope = factory.Services.CreateAsyncScope();
       var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OrderManagementDbCtx>();
       var savedOrder = await verifyDb.Orders.AsNoTracking().SingleAsync(x => x.Id == created.OrderId);
@@ -150,6 +158,7 @@ public sealed class OrderStatusTests
         Assert.Equal("CANCELLED", await readStatus.ExecuteScalarAsync());
       }
 
+      // ===== ROLLBACK: kalau restore stock gagal, status dan stock ga boleh berubah =====
       using var secondCreateRequest = new HttpRequestMessage(HttpMethod.Post, "/orders")
       {
         Content = JsonContent.Create(new
@@ -188,6 +197,7 @@ public sealed class OrderStatusTests
     }
     finally
     {
+      // ===== CLEANUP: buang database sementara walaupun test-nya gagal =====
       using (var pooledConnection = new SqlConnection(testConnection.ConnectionString))
         SqlConnection.ClearPool(pooledConnection);
       await using var dropDatabase = master.CreateCommand();

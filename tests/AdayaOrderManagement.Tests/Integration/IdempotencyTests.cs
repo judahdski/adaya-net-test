@@ -18,6 +18,7 @@ public sealed class IdempotencyTests
   [Fact]
   public async Task ConcurrentIdenticalRequests_CreateOneOrderAndDeductStockOnce()
   {
+    // ===== SETUP: bikin database sementara biar data aplikasi ga kesentuh =====
     var serverConnectionString = Environment.GetEnvironmentVariable("ADAYA_TEST_SQLSERVER_CONNECTION")
       ?? "Server=localhost;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True";
     var databaseName = $"AdayaOrderManagement_IdempotencyTest_{Guid.NewGuid():N}";
@@ -34,6 +35,7 @@ public sealed class IdempotencyTests
 
     try
     {
+      // ===== SETUP API: pasang barrier test ke HTTP pipeline dan database asli =====
       const string key = "scenario-C-same-logical-operation";
       var claimBarrier = new ConcurrentClaimBarrier(key);
       using var factory = new CustomWebApplicationFactory(testConnection.ConnectionString, claimBarrier);
@@ -42,7 +44,8 @@ public sealed class IdempotencyTests
         BaseAddress = new Uri("https://localhost")
       });
 
-      // Arrange: database baru per test, tidak nyentuh data aplikasi.
+      // ===== ARRANGE: stock 15 dan database belum punya order atau claim =====
+      // database baru per test, jadi ga nyentuh data aplikasi.
       int productId;
       await using (var seedScope = factory.Services.CreateAsyncScope())
       {
@@ -56,7 +59,7 @@ public sealed class IdempotencyTests
         Assert.Equal(0, await db.IdempotencyRequests.CountAsync());
       }
 
-      // Prepare: dua message terpisah, payload dan key identik.
+      // ===== PREPARE: dua message terpisah, tapi payload dan key-nya sama =====
       var payload = new
       {
         customerId = "C001",
@@ -77,7 +80,8 @@ public sealed class IdempotencyTests
       using var requestB = PrepareRequest();
       using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
 
-      // Act: jangan await request A sebelum mengirim B. Barrier di bawah memaksa
+      // ===== ACT: kirim dua request dulu, baru tunggu hasil keduanya =====
+      // Jangan await request A sebelum mengirim B. Barrier di bawah memaksa
       // dua transaksi mencapai penyimpanan klaim sebelum salah satunya boleh lanjut.
       var taskA = client.SendAsync(requestA, timeout.Token);
       var taskB = client.SendAsync(requestB, timeout.Token);
@@ -85,6 +89,7 @@ public sealed class IdempotencyTests
       using var responseA = responses[0];
       using var responseB = responses[1];
 
+      // ===== ASSERT HTTP: dua request harus ketemu di claim dan dapet order yang sama =====
       Assert.Equal(2, claimBarrier.ArrivedContextCount);
       Assert.Equal(
         [HttpStatusCode.OK, HttpStatusCode.Created],
@@ -101,7 +106,8 @@ public sealed class IdempotencyTests
       var created = responses.Single(response => response.StatusCode == HttpStatusCode.Created);
       Assert.Equal($"/orders/{orderA.OrderId}", created.Headers.Location?.ToString());
 
-      // Assert database: scope/DbContext baru, baca hasil commit tanpa tracking.
+      // ===== ASSERT DATABASE: cuma boleh ada satu order dan satu pengurangan stock =====
+      // Pake DbContext baru buat baca hasil commit tanpa tracking.
       await using var verifyScope = factory.Services.CreateAsyncScope();
       var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OrderManagementDbCtx>();
       Assert.Equal(1, await verifyDb.Orders.CountAsync());
@@ -125,6 +131,7 @@ public sealed class IdempotencyTests
     }
     finally
     {
+      // ===== CLEANUP: buang database sementara walaupun test-nya gagal =====
       // Hapus hanya database bernama acak yang dibuat oleh test ini.
       using (var pooledConnection = new SqlConnection(testConnection.ConnectionString))
         SqlConnection.ClearPool(pooledConnection);
@@ -134,7 +141,8 @@ public sealed class IdempotencyTests
     }
   }
 
-  // Hook hanya untuk scheduling test; SQL, transaksi, dan service tetap asli.
+  // ===== TEST HOOK: bikin race-nya konsisten tanpa nge-mock service atau SQL =====
+  // Hook cuma buat scheduling test; SQL, transaksi, dan service tetap asli.
   // Jangan taruh barrier setelah INSERT: request kedua bisa menunggu lock milik
   // request pertama, sementara request pertama menunggu barrier (deadlock test).
   private sealed class ConcurrentClaimBarrier(string key) : SaveChangesInterceptor

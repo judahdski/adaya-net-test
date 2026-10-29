@@ -16,6 +16,7 @@ public sealed class ConcurrentStockTests
   [Fact]
   public async Task DifferentKeysForSameProduct_OnlyOneOrderDeductsStock()
   {
+    // ===== SETUP: bikin database sementara biar data aplikasi ga kesentuh =====
     var serverConnectionString = Environment.GetEnvironmentVariable("ADAYA_TEST_SQLSERVER_CONECTION")
       ?? "Server=localhost;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True";
     var databaseName = $"AdayaOrderManagement_ConcurrencyTest_{Guid.NewGuid():N}";
@@ -34,12 +35,14 @@ public sealed class ConcurrentStockTests
 
     try
     {
+      // ===== SETUP API: jalanin HTTP pipeline asli pake database test =====
       using var factory = new CustomWebApplicationFactory(testConnection.ConnectionString);
       using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
       {
         BaseAddress = new Uri("https://localhost")
       });
 
+      // ===== ARRANGE: stock 15, sedangkan dua request bakal minta 10 + 10 =====
       int productId;
       await using (var seedScope = factory.Services.CreateAsyncScope())
       {
@@ -57,6 +60,7 @@ public sealed class ConcurrentStockTests
         productId = product.Id;
       }
 
+      // ===== ACT: siapin dua request, terus lepas barengan dari gate yang sama =====
       var startGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
       async Task<HttpResponseMessage> SendOrderAsync(string key)
@@ -83,6 +87,7 @@ public sealed class ConcurrentStockTests
       using var responseA = responses[0];
       using var responseB = responses[1];
 
+      // ===== ASSERT HTTP: harus satu berhasil dan satu kalah karena stock kurang =====
       Assert.Equal(
         [HttpStatusCode.Created, HttpStatusCode.Conflict],
         responses.Select(response => response.StatusCode).OrderBy(status => status).ToArray());
@@ -99,6 +104,7 @@ public sealed class ConcurrentStockTests
         Assert.Equal("INSUFFICIENT_STOCK", problem.RootElement.GetProperty("code").GetString());
       }
 
+      // ===== ASSERT DATABASE: cek hasil yang bener-bener udah ke-commit =====
       // context baru ini baca hasil yang udah benar benar tersimpan di sql server
       await using var verifyScope = factory.Services.CreateAsyncScope();
       var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OrderManagementDbCtx>();
@@ -116,6 +122,7 @@ public sealed class ConcurrentStockTests
     }
     finally
     {
+      // ===== CLEANUP: buang database sementara walaupun test-nya gagal =====
       // yang dihapus cuma database acak yang barusan dibikin sama test ini
       using (var pooledConnection = new SqlConnection(testConnection.ConnectionString))
         SqlConnection.ClearPool(pooledConnection);
